@@ -1,7 +1,4 @@
 flask
 pandas
-opencv-python
-numpy
-ultralytics
-scipy
 gunicorn
+numpy
