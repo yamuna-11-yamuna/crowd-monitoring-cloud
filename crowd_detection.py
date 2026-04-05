@@ -18,7 +18,7 @@ if not os.path.exists("static"):
     os.makedirs("static")
 
 frame_count = 0
-MAX_FRAMES = 30
+MAX_FRAMES = 10
 
 while cap.isOpened():
     ret, frame = cap.read()
