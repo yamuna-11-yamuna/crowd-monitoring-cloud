@@ -18,7 +18,7 @@ if not os.path.exists("static"):
     os.makedirs("static")
 
 frame_count = 0
-MAX_FRAMES = 10
+MAX_FRAMES = 15   # slightly increased
 
 while cap.isOpened():
     ret, frame = cap.read()
@@ -42,7 +42,7 @@ while cap.isOpened():
                 center = ((x1 + x2) // 2, (y1 + y2) // 2)
                 persons.append(center)
 
-    # Crowd logic
+    # 🔥 SMART CROWD LOGIC
     crowd_count = 0
     for i, p1 in enumerate(persons):
         close = 0
@@ -54,23 +54,22 @@ while cap.isOpened():
 
     crowd_data.append([frame_count, crowd_count])
 
-    # 🔥 HEATMAP
+    # 🔥 ADVANCED HEATMAP
     heatmap = np.zeros((frame.shape[0], frame.shape[1]), dtype=np.float32)
 
     for (x, y) in persons:
-        cv2.circle(heatmap, (x, y), 25, 1, -1)
+        cv2.circle(heatmap, (x, y), 50, 1, -1)
 
-    heatmap = cv2.GaussianBlur(heatmap, (25, 25), 0)
+    heatmap = cv2.GaussianBlur(heatmap, (51, 51), 0)
     heatmap = cv2.normalize(heatmap, None, 0, 255, cv2.NORM_MINMAX)
     heatmap = heatmap.astype(np.uint8)
 
     heatmap_color = cv2.applyColorMap(heatmap, cv2.COLORMAP_JET)
-
     overlay = cv2.addWeighted(frame, 0.6, heatmap_color, 0.4, 0)
 
     cv2.imwrite("static/heatmap.jpg", overlay)
 
-# Save CSV
+# SAVE CSV
 df = pd.DataFrame(crowd_data, columns=["Frame", "Crowd Count"])
 df.to_csv("smart_crowd_results.csv", index=False)
 

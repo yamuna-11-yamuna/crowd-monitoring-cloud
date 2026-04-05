@@ -8,11 +8,12 @@
 body {
     margin: 0;
     font-family: 'Segoe UI';
-    background: #0f172a;
+    background: linear-gradient(135deg,#020617,#0f172a);
     color: white;
     display: flex;
 }
 
+/* SIDEBAR */
 .sidebar {
     width: 220px;
     background: #020617;
@@ -29,11 +30,13 @@ body {
 .nav-item:hover { background: #1e293b; }
 .active { background: #22c55e; }
 
+/* MAIN */
 .main { flex: 1; padding: 20px; }
 
 .section { display: none; }
 .section.active-section { display: block; }
 
+/* CARDS */
 .cards {
     display: flex;
     gap: 20px;
@@ -46,6 +49,12 @@ body {
     border-radius: 12px;
     flex: 1;
     text-align: center;
+    box-shadow: 0 0 15px rgba(34,197,94,0.3);
+}
+
+.card:hover {
+    transform: scale(1.05);
+    transition: 0.3s;
 }
 
 .value {
@@ -53,6 +62,7 @@ body {
     font-weight: bold;
 }
 
+/* BUTTONS */
 button {
     padding: 10px 20px;
     border-radius: 8px;
@@ -74,6 +84,7 @@ button {
 
 <body>
 
+<!-- SIDEBAR -->
 <div class="sidebar">
     <h2>🚀 Crowd AI</h2>
 
@@ -82,6 +93,7 @@ button {
     <div class="nav-item" onclick="showSection(event,'reports')">Reports</div>
 </div>
 
+<!-- MAIN -->
 <div class="main">
 
 <!-- DASHBOARD -->
@@ -106,7 +118,6 @@ button {
 
 <div class="heatmap">
     <h3>🔥 Heatmap</h3>
-    <!-- ✅ FIXED -->
     <img id="heatmap" src="/static/heatmap.jpg" width="500">
 </div>
 
@@ -114,135 +125,105 @@ button {
 
 <!-- ANALYTICS -->
 <div id="analytics" class="section">
-    <h1>📊 Analytics</h1>
+<h1>📊 Analytics</h1>
 
-    <div class="cards">
-        <div class="card"><h3>Average Crowd</h3><div id="avg" class="value">--</div></div>
-        <div class="card"><h3>Max Crowd</h3><div id="max" class="value">--</div></div>
-        <div class="card"><h3>Min Crowd</h3><div id="min" class="value">--</div></div>
-    </div>
+<div class="cards">
+    <div class="card"><h3>Average</h3><div id="avg" class="value">--</div></div>
+    <div class="card"><h3>Max</h3><div id="max" class="value">--</div></div>
+    <div class="card"><h3>Min</h3><div id="min" class="value">--</div></div>
+</div>
 
-    <div class="chart-box">
-        <canvas id="analyticsChart"></canvas>
-    </div>
+<canvas id="analyticsChart"></canvas>
 </div>
 
 <!-- REPORTS -->
 <div id="reports" class="section">
-    <h1>📁 Reports</h1>
+<h1>📁 Reports</h1>
 
-    <button onclick="downloadCSV()">⬇ Download CSV</button>
+<button onclick="downloadCSV()">Download CSV</button>
 
-    <table border="1" style="margin-top:20px; width:100%; color:white;">
-        <thead>
-            <tr><th>Frame</th><th>Crowd Count</th></tr>
-        </thead>
-        <tbody id="reportTable"></tbody>
-    </table>
+<table border="1" style="width:100%; margin-top:20px;">
+<thead>
+<tr><th>Frame</th><th>Count</th></tr>
+</thead>
+<tbody id="reportTable"></tbody>
+</table>
+
 </div>
 
 </div>
 
 <script>
 
-let chart;
-let analyticsChart;
+let chart, analyticsChart;
 
-/* START */
-function startSystem() {
-    fetch("/start");
-    document.getElementById("status").innerText = "Status: Running";
+/* SIDEBAR */
+function showSection(e,id){
+document.querySelectorAll(".section").forEach(s=>s.classList.remove("active-section"));
+document.getElementById(id).classList.add("active-section");
+
+document.querySelectorAll(".nav-item").forEach(n=>n.classList.remove("active"));
+e.target.classList.add("active");
 }
 
-/* STOP */
-function stopSystem() {
-    fetch("/stop");
-    document.getElementById("status").innerText = "Status: Stopped";
+/* START STOP */
+function startSystem(){ fetch("/start"); document.getElementById("status").innerText="Running"; }
+function stopSystem(){ fetch("/stop"); document.getElementById("status").innerText="Stopped"; }
+
+/* FETCH */
+function fetchData(){
+fetch("/data").then(r=>r.json()).then(res=>{
+
+let data=res.data;
+let pred=res.prediction;
+if(!data.length) return;
+
+let counts=data.map(d=>d["Crowd Count"]);
+let frames=data.map(d=>d.Frame);
+
+let avg=counts.reduce((a,b)=>a+b,0)/counts.length;
+let level=avg>20?"HIGH":avg>10?"MEDIUM":"LOW";
+
+document.getElementById("level").innerText=level;
+document.getElementById("prediction").innerText=pred;
+document.getElementById("people").innerText=counts.at(-1);
+
+/* MAIN GRAPH */
+if(chart) chart.destroy();
+chart=new Chart(document.getElementById("chart"),{
+type:"line",
+data:{labels:frames,datasets:[{label:"Crowd",data:counts}]}
+});
+
+/* ANALYTICS */
+document.getElementById("avg").innerText=avg.toFixed(2);
+document.getElementById("max").innerText=Math.max(...counts);
+document.getElementById("min").innerText=Math.min(...counts);
+
+if(analyticsChart) analyticsChart.destroy();
+analyticsChart=new Chart(document.getElementById("analyticsChart"),{
+type:"bar",
+data:{labels:frames,datasets:[{label:"Crowd",data:counts}]}
+});
+
+/* REPORT */
+let table=document.getElementById("reportTable");
+table.innerHTML="";
+data.forEach(d=>{
+table.innerHTML+=`<tr><td>${d.Frame}</td><td>${d["Crowd Count"]}</td></tr>`;
+});
+
+/* HEATMAP REFRESH */
+document.getElementById("heatmap").src="/static/heatmap.jpg?t="+Date.now();
+
+});
 }
 
-/* SIDEBAR SWITCH */
-function showSection(e, sectionId) {
-    document.querySelectorAll(".section").forEach(sec => {
-        sec.classList.remove("active-section");
-    });
-
-    document.getElementById(sectionId).classList.add("active-section");
-
-    document.querySelectorAll(".nav-item").forEach(item => {
-        item.classList.remove("active");
-    });
-
-    e.target.classList.add("active");
+function downloadCSV(){
+window.location.href="/download";
 }
 
-/* FETCH DATA */
-function fetchData() {
-    fetch("/data")
-    .then(res => res.json())
-    .then(res => {
-
-        let data = res.data;
-        let prediction = res.prediction;
-
-        if (!data || data.length === 0) return;
-
-        let counts = data.map(d => d["Crowd Count"]);
-        let frames = data.map(d => d.Frame);
-
-        let avg = counts.reduce((a,b)=>a+b,0)/counts.length;
-
-        let level = avg > 20 ? "HIGH" : avg > 10 ? "MEDIUM" : "LOW";
-
-        document.getElementById("level").innerText = level;
-        document.getElementById("prediction").innerText = prediction;
-        document.getElementById("people").innerText = counts[counts.length-1];
-
-        if (chart) chart.destroy();
-        chart = new Chart(document.getElementById("chart"), {
-            type: "line",
-            data: {
-                labels: frames,
-                datasets: [{ label: "Crowd Count", data: counts }]
-            }
-        });
-
-        // Analytics
-        document.getElementById("avg").innerText = avg.toFixed(2);
-        document.getElementById("max").innerText = Math.max(...counts);
-        document.getElementById("min").innerText = Math.min(...counts);
-
-        if (analyticsChart) analyticsChart.destroy();
-        analyticsChart = new Chart(document.getElementById("analyticsChart"), {
-            type: "bar",
-            data: {
-                labels: frames,
-                datasets: [{ label: "Crowd Count", data: counts }]
-            }
-        });
-
-        // Reports
-        let table = document.getElementById("reportTable");
-        table.innerHTML = "";
-        data.forEach(d => {
-            table.innerHTML += `<tr>
-                <td>${d.Frame}</td>
-                <td>${d["Crowd Count"]}</td>
-            </tr>`;
-        });
-
-        // ✅ FIXED HEATMAP REFRESH
-        document.getElementById("heatmap").src =
-            "/static/heatmap.jpg?t=" + new Date().getTime();
-    });
-}
-
-/* ✅ FIXED DOWNLOAD */
-function downloadCSV() {
-    window.location.href = "/download";
-}
-
-/* AUTO REFRESH */
-setInterval(fetchData, 2000);
+setInterval(fetchData,2000);
 
 </script>
 

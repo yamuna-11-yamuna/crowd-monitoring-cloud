@@ -19,7 +19,7 @@ def start():
 
     if process is None or process.poll() is not None:
         print("Starting detection...")
-        process = subprocess.Popen(["python", "crowd_detection.py"])
+        process = subprocess.Popen(["python", "crowd_density.py"])
         return "Started"
     else:
         return "Already running"
@@ -54,13 +54,12 @@ def data():
     return jsonify({"data": [], "prediction": 0})
 
 
-# ✅ FIXED DOWNLOAD
 @app.route("/download")
 def download():
     return send_file("smart_crowd_results.csv", as_attachment=True)
 
 
-
+# 🔥 IMPORTANT FOR RENDER
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port)
