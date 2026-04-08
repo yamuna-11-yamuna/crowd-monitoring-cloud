@@ -18,22 +18,27 @@ def start():
     global process
 
     if process is None or process.poll() is not None:
-        print("Starting detection...")
-        process = subprocess.Popen(["python", "crowd_density.py"])
+        process = subprocess.Popen(["python", "crowd_detection.py"])
         return "Started"
-    else:
-        return "Already running"
 
+    return "Already running"
 
 @app.route("/stop")
 def stop():
     global process
 
-    if process is not None:
-        process.terminate()
+    if process:
+        process.terminate()   # 🔥 graceful stop
+        process.wait()        # 🔥 wait until stopped
         process = None
+
+        # 🔥 CLEAR DATA (VERY IMPORTANT)
+        if os.path.exists("smart_crowd_results.csv"):
+            os.remove("smart_crowd_results.csv")
+
         return "Stopped"
-    return "No process running"
+
+    return "Not running"
 
 
 @app.route("/data")
@@ -41,10 +46,9 @@ def data():
     if os.path.exists("smart_crowd_results.csv"):
         df = pd.read_csv("smart_crowd_results.csv")
 
-        if len(df) > 3:
-            prediction = int(df["Crowd Count"].tail(3).mean())
-        else:
-            prediction = 0
+        df = df.dropna()   # 🔥 important fix
+
+        prediction = int(df["Crowd Count"].tail(3).mean()) if len(df) > 3 else 0
 
         return jsonify({
             "data": df.tail(10).to_dict(orient="records"),
@@ -59,7 +63,5 @@ def download():
     return send_file("smart_crowd_results.csv", as_attachment=True)
 
 
-# 🔥 IMPORTANT FOR RENDER
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 10000))
-    app.run(host="0.0.0.0", port=port)
+    app.run(debug=True)

@@ -2,32 +2,29 @@ import cv2
 import numpy as np
 import pandas as pd
 from ultralytics import YOLO
-from scipy.spatial import distance
 import os
+import time
+
+# 🔥 RESET CSV EVERY RUN
+if os.path.exists("smart_crowd_results.csv"):
+    os.remove("smart_crowd_results.csv")
 
 model = YOLO("yolov8n.pt")
 
-CROWD_THRESHOLD = 4
-DISTANCE_THRESHOLD = 60
-
-crowd_data = []
-
-cap = cv2.VideoCapture("dataset_video.mp4")
+cap = cv2.VideoCapture("dataset_video.mp4")  # or use 0 for webcam
 
 if not os.path.exists("static"):
     os.makedirs("static")
 
 frame_count = 0
-MAX_FRAMES = 15   # slightly increased
 
-while cap.isOpened():
+while True:
     ret, frame = cap.read()
     if not ret:
-        break
+        cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+        continue
 
     frame_count += 1
-    if frame_count > MAX_FRAMES:
-        break
 
     frame = cv2.resize(frame, (640, 360))
 
@@ -35,6 +32,7 @@ while cap.isOpened():
 
     persons = []
 
+    # ✅ DETECT PEOPLE
     for r in results:
         for box in r.boxes:
             if int(box.cls) == 0:
@@ -42,25 +40,38 @@ while cap.isOpened():
                 center = ((x1 + x2) // 2, (y1 + y2) // 2)
                 persons.append(center)
 
-    # 🔥 SMART CROWD LOGIC
-    crowd_count = 0
-    for i, p1 in enumerate(persons):
-        close = 0
-        for j, p2 in enumerate(persons):
-            if i != j and distance.euclidean(p1, p2) < DISTANCE_THRESHOLD:
-                close += 1
-        if close >= CROWD_THRESHOLD:
-            crowd_count += 1
+    # ✅ LEFT / RIGHT
+    left_count = 0
+    right_count = 0
 
-    crowd_data.append([frame_count, crowd_count])
+    for (x, y) in persons:
+        if x < frame.shape[1] // 2:
+            left_count += 1
+        else:
+            right_count += 1
 
-    # 🔥 ADVANCED HEATMAP
+    total_people = len(persons)
+
+    # ✅ SAVE DATA EVERY FRAME (IMPORTANT)
+    df = pd.DataFrame([[
+        frame_count,
+        total_people,
+        left_count,
+        right_count
+    ]], columns=["Frame", "Crowd Count", "Left Zone", "Right Zone"])
+
+    if os.path.exists("smart_crowd_results.csv"):
+        df.to_csv("smart_crowd_results.csv", mode='a', header=False, index=False)
+    else:
+        df.to_csv("smart_crowd_results.csv", index=False)
+
+    # 🔥 HEATMAP
     heatmap = np.zeros((frame.shape[0], frame.shape[1]), dtype=np.float32)
 
     for (x, y) in persons:
-        cv2.circle(heatmap, (x, y), 50, 1, -1)
+        cv2.circle(heatmap, (x, y), 25, 1, -1)
 
-    heatmap = cv2.GaussianBlur(heatmap, (51, 51), 0)
+    heatmap = cv2.GaussianBlur(heatmap, (25, 25), 0)
     heatmap = cv2.normalize(heatmap, None, 0, 255, cv2.NORM_MINMAX)
     heatmap = heatmap.astype(np.uint8)
 
@@ -69,9 +80,8 @@ while cap.isOpened():
 
     cv2.imwrite("static/heatmap.jpg", overlay)
 
-# SAVE CSV
-df = pd.DataFrame(crowd_data, columns=["Frame", "Crowd Count"])
-df.to_csv("smart_crowd_results.csv", index=False)
+    # 🔥 SLOW DOWN (IMPORTANT for UI update)
+    time.sleep(0.5)
 
 cap.release()
 cv2.destroyAllWindows()
